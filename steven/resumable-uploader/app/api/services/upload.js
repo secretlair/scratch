@@ -1,5 +1,4 @@
 import * as s3Controller from '../controllers/s3';
-import { Readable } from 'stream';
 
 export const initializeUpload = async (fileName, fileType) => {
   try {
@@ -16,11 +15,12 @@ export const initializeUpload = async (fileName, fileType) => {
 export const uploadContent = async (uploadId, fileName, readableStream, contentSize) => {
   const MIN_PART_SIZE = 5 * 1024 * 1024; // 5 MB
   const partSize = MIN_PART_SIZE;
-  const totalParts = Math.ceil(contentSize / partSize);
-  console.log('Total parts: ', totalParts);
+
+  // List parts
+  const parts = await s3Controller.listParts(fileName, uploadId);
 
   let uploadedSize = 0;
-  let partNumber = 1;
+  let partNumber = parts.length + 1;
   const uploadedParts = [];
   let tempBuffer = Buffer.alloc(0);
 
@@ -68,7 +68,8 @@ export const completeUpload = async (uploadId, fileName) => {
   try {
     const parts = await s3Controller.listParts(fileName, uploadId);
     await s3Controller.completeMultipartUpload(fileName, uploadId, parts);
-    return { message: 'Upload completed successfully' };
+    const downloadUrl = await s3Controller.getDownloadUrl(fileName);
+    return { message: 'Upload completed successfully', downloadUrl };
   } catch (error) {
     console.error('Error completing upload:', error);
     throw new Error('Error completing upload');
@@ -78,19 +79,14 @@ export const completeUpload = async (uploadId, fileName) => {
 export const getUploadProgress = async (uploadId, fileName) => {
   try {
     const parts = await s3Controller.listParts(fileName, uploadId);
-    const uploadedSize = parts.reduce((total, part) => total + part.Size, 0);
+    const bytesUploaded = parts.reduce((total, part) => total + part.Size, 0);
     const totalParts = parts.length;
 
     return {
       uploadId,
       fileName,
-      uploadedSize,
+      bytesUploaded,
       totalParts,
-      parts: parts.map(part => ({
-        partNumber: part.PartNumber,
-        size: part.Size,
-        etag: part.ETag
-      }))
     };
   } catch (error) {
     console.error('Error getting upload progress:', error);

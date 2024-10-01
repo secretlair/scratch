@@ -4,9 +4,11 @@ export default function UploadForm({
   file,
   uploadProgress,
   uploadStatus,
+  downloadUrl,
   onFileChange,
   onUpload,
-  onPauseResume
+  onPause,
+  onResume
 }) {
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -54,21 +56,40 @@ export default function UploadForm({
           </div>
         </div>
         <div className="flex justify-between space-x-4">
-          <Button 
+          {/* Start Upload Button */}
+          {uploadStatus === 'idle' && <Button 
             onClick={onUpload} 
             disabled={!file || uploadStatus === 'uploading'}
             className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
           >
-            {uploadStatus === 'idle' ? 'Start Upload' : 'Uploading...'}
-          </Button>
-          <Button
-            onClick={onPauseResume}
-            disabled={!file || uploadStatus === 'idle'}
-            variant={uploadStatus === 'paused' ? 'secondary' : 'primary'}
+            Start Upload
+          </Button>}
+
+          {/* Resume Button */}
+          {uploadStatus === 'paused' && <Button
+            onClick={onResume}
             className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
           >
-            {uploadStatus === 'paused' ? 'Resume' : 'Pause'}
-          </Button>
+            Resume
+          </Button>}
+
+          {/* Pause Button */}
+          {uploadStatus === 'uploading' && <Button
+            onClick={onPause}
+            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+          >
+            Pause
+          </Button>}
+
+          {/* Download Button */}
+          {uploadStatus === 'completed' && downloadUrl && (
+            <Button
+              onClick={() => window.open(downloadUrl, '_blank')}
+              className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+            >
+              Download File
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -3,17 +3,27 @@
 import { useState } from 'react';
 import UploadForm from './components/UploadForm';
 
+// Custom error class for aborted uploads
+class UploadAbortedError extends Error {
+  constructor(message = 'Upload aborted') {
+    super(message);
+    this.name = 'UploadAbortedError';
+  }
+}
+
 export default function Home() {
   const [file, setFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState('idle'); // 'idle', 'uploading', 'paused'
+  const [uploadStatus, setUploadStatus] = useState('idle'); // 'idle', 'uploading', 'paused', 'completed'
   const [uploadId, setUploadId] = useState(null);
+  const [abortController, setAbortController] = useState(null);
+  const [downloadUrl, setDownloadUrl] = useState(null);
 
   const handleFileChange = (selectedFile) => {
     setFile(selectedFile);
   };
 
-  const handleUpload = async () => {
+  const handleStartUpload = async () => {
     if (!file) return;
 
     setUploadStatus('uploading');
@@ -38,11 +48,65 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uploadId, fileName: file.name }),
       });
-      console.log('Upload completed: ', completeResponse)
+      const { downloadUrl } = await completeResponse.json();
+      console.log('Download URL: ', downloadUrl)
+      
+      // Update state
+      setDownloadUrl(downloadUrl);
+      setUploadStatus('completed');
 
-      setUploadStatus('idle');
     } catch (error) {
-      console.error('Upload failed:', error);
+      if (error instanceof UploadAbortedError) {
+        console.log('Upload was aborted');
+        // You can handle the aborted upload specifically here
+        // For example, you might want to keep the 'paused' status
+        setUploadStatus('paused');
+      } else {
+        console.error('Upload failed:', error);
+        setUploadStatus('idle');
+      }
+    }
+  };
+
+  const handlePause = () => {
+    
+    // Change the status to paused
+    setUploadStatus('paused');
+
+    // Abort the upload
+    abortController?.abort();
+  };
+
+  const handleResume = async () => {
+    try {
+      // Get the current progress from the server
+      const response = await fetch(`/api/upload/get?uploadId=${uploadId}&fileName=${file.name}`);
+      if (!response.ok) {
+        throw new Error('Failed to get upload progress');
+      }
+      const progress = await response.json();
+      
+      // Get the content to resume upload
+      const content = file.slice(progress.bytesUploaded);
+
+      // Resume the upload
+      await uploadContent(content, uploadId, file.name, content.size);
+
+      // Complete the upload
+      const completeResponse = await fetch('/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uploadId, fileName: file.name }),
+      });
+
+      const { downloadUrl } = await completeResponse.json();
+      console.log('Download URL: ', downloadUrl)
+      
+      // Update state
+      setDownloadUrl(downloadUrl);
+      setUploadStatus('completed');
+    } catch (error) {
+      console.error('Failed to resume upload:', error);
       setUploadStatus('idle');
     }
   };
@@ -51,6 +115,9 @@ export default function Home() {
     const url = `/api/upload/content?fileName=${encodeURIComponent(fileName)}&uploadId=${uploadId}&contentSize=${contentSize}`;
 
     return new Promise((resolve, reject) => {
+      const controller = new AbortController();
+      setAbortController(controller);
+
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url, true);
       xhr.setRequestHeader('Content-Type', 'application/octet-stream');
@@ -68,19 +135,18 @@ export default function Home() {
           console.log('Uploaded content: ', xhr)
           resolve(null);
         } else {
-          reject(new Error('Failed to upload part'));
+          reject(new Error('Failed to upload content'));
         }
       };
 
-      xhr.onerror = () => reject(new Error('Failed to upload part'));
-      xhr.send(content);
-    });
-  };
+      xhr.onerror = () => reject(new Error('Failed to upload content'));
+      xhr.onabort = () => reject(new UploadAbortedError());
 
-  const handlePauseResume = () => {
-    // For simplicity, we'll just toggle the status
-    // In a real implementation, you'd need to handle pausing and resuming the actual upload
-    setUploadStatus(uploadStatus === 'uploading' ? 'paused' : 'uploading');
+      xhr.send(content);
+
+      // Attach abort signal to the XHR request
+      controller.signal.addEventListener('abort', () => xhr.abort());
+    });
   };
 
   return (
@@ -94,9 +160,11 @@ export default function Home() {
             file={file}
             uploadProgress={uploadProgress}
             uploadStatus={uploadStatus}
+            downloadUrl={downloadUrl}
             onFileChange={handleFileChange}
-            onUpload={handleUpload}
-            onPauseResume={handlePauseResume}
+            onUpload={handleStartUpload}
+            onPause={handlePause}
+            onResume={handleResume}
           />
         </div>
       </main>
