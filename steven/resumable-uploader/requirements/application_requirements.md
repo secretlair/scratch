@@ -16,10 +16,12 @@ This project aims to develop a prototype for a resumable file uploader to Amazon
    - Visual indicators for paused and active upload states.
 
 3. **Server Endpoints**:
-   - **Initialize Upload** (`/api/upload/initialize`): Starts a new multipart upload and returns an `uploadId` to the client.
-   - **Upload Content** (`/api/upload/content`): Handles the upload it receives the stream and it needs to split it into parts (if needed) and upload each part to S3. This needs to be resumable, so when paused the server needs to save the received data and the offset, so when resumed the server can continue the upload from the last saved offset.
-   - **Complete Upload** (`/api/upload/complete`): After all parts are uploaded, this endpoint finalizes the multipart upload on S3.
-   - **Get Upload Progress** (`/api/upload/progress`): Returns the list of uploaded parts and their sizes for a given `uploadId`.
+   - **Initialize Upload**: Starts a new multipart upload and returns an `uploadId` to the client.
+   - **Upload Content**: Handles the upload it receives the stream and it needs to split it into parts (if needed) and upload each part to S3. This needs to be resumable, so when paused the server needs to save the received data and the offset, so when resumed the server can continue the upload from the last saved offset.
+   - **Complete Upload**: After all parts are uploaded, this endpoint finalizes the multipart upload on S3.
+   - **Get Upload Progress**: Returns the list of uploaded parts and their sizes for a given `uploadId`.
+
+   Always follow the instructions for creating endpoints in the .cursorrules file.
 
 4. **Client-Side Logic**:
    - Efficiently read and send streams to the server.
@@ -47,24 +49,17 @@ nextjs-uploader/
 │
 ├── app/
 │   ├── components/
-│   │   ├── UploadForm.tsx
-│   │   ├── ProgressBar.tsx
-│   │   ├── PauseButton.tsx
-│   │   ├── ResumeButton.tsx
-│   │   └── FileDetails.tsx
+│   │   ├── UploadForm.jsx
+│   │   └── Button.jsx
 │   ├── upload/
-│   │   └── page.tsx
+│   │   └── container.jsx
+│   ├── api/
+│   │   ├── services/
+│   │   ├── controllers/
+│   │   ├── handlers/
 │   ├── globals.css
-│   ├── layout.tsx
-│   └── page.tsx
-│
-├── pages/
-│   └── api/
-│       └── upload/
-│           ├── initialize.ts
-│           ├── part.ts
-│           ├── complete.ts
-│           └── progress.ts
+│   ├── layout.jsx
+│   └── page.jsx
 │
 ├── public/
 │   └── favicon.ico
@@ -89,7 +84,7 @@ nextjs-uploader/
 - **Responsive Design**: Ensure all components are responsive and work seamlessly across different screen sizes.
 - **Component Organization**: All reusable UI components must be placed in the `components/` folder.
 - **Page Organization**: All pages must be in the `app/` folder, following Next.js conventions.
-- **TypeScript Usage**: Utilize TypeScript for type safety across the project.
+- **JavaScript Usage**: Utilize JavaScript for the project.
 - **AWS SDK**: Use AWS SDK for JavaScript v3 for interacting with S3.
 - **Security Best Practices**:
   - Do not expose AWS credentials or sensitive data on the client side.

@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "api": {
+      "handlers": {
+        "description": "Handlers manage the HTTP protocol, handling incoming requests, and forwarding them to the services layer. They should not contain any application logic. Place handlers in the app/api/handlers directory."
+      },
+      "services": {
+        "description": "Services contain all core application logic. They orchestrate tasks and handle business logic but do not handle HTTP requests or interact with external APIs directly. Place services in the app/api/services directory."
+      },
+      "controllers": {
+        "description": "Controllers manage interactions with external systems such as S3 for uploads/downloads or databases. They encapsulate logic related to external systems, keeping it out of the services layer. Place controllers in the app/api/controllers directory."
+      }
+    },
+    "ui": {
+      "views": {
+        "description": "Views/Pages are responsible only for DOM presentation and should not contain any application logic. Place views in the app/views directory."
+      },
+      "containers": {
+        "description": "Containers handle all logic including state management and application behavior. They pass data to views for presentation, ensuring a clean separation of concerns. Place containers in the app/containers directory."
+      }
+    }
+  },
+  "files": {
+    ".cursorrules": {
+      "description": "Defines the rules for API and UI layers with strict separation of concerns using Next.js 14 with JavaScript. Place this file in the root of the project."
+    }
+  }
+}
