@@ -4,6 +4,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const s3Client = new S3Client({
   endpoint: process.env.AWS_ENDPOINT,
   region: process.env.AWS_REGION,
+  maxAttempts: 3,
+  requestTimeout: 600000, // 10 minutes
   forcePathStyle: true,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -27,22 +29,35 @@ export const initializeMultipartUpload = async (key, contentType) => {
   }
 };
 
-export const uploadPart = async (key, uploadId, partNumber, body) => {
-  try {
-    const command = new UploadPartCommand({
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Key: key,
-      UploadId: uploadId,
-      PartNumber: partNumber,
-      Body: body,
-    });
+export const uploadPart = async (key, uploadId, partNumber, body, contentLength) => {
+  const maxRetries = 3;
+  let retries = 0;
 
-    const { ETag } = await s3Client.send(command);
-    return ETag;
-  } catch (error) {
-    console.error('Error uploading part:', error);
-    throw new Error('Error uploading part');
+  while (retries < maxRetries) {
+    try { 
+      const command = new UploadPartCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: key,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+        Body: body,
+        ContentLength: contentLength
+      });
+
+      const { ETag } = await s3Client.send(command);
+      return ETag;
+    } catch (error) {
+      if (error.name === 'RequestTimeout' || error.$metadata?.httpStatusCode === 400) {
+        retries++;
+        console.log(`Retry ${retries} for part ${partNumber}`);
+        // await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries))); // Exponential backoff
+      } else {
+        throw error;
+      }
+    }
   }
+
+  throw new Error(`Failed to upload part ${partNumber} after ${maxRetries} retries`);
 };
 
 export const completeMultipartUpload = async (key, uploadId, parts) => {

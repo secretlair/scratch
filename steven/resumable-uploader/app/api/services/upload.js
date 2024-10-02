@@ -1,4 +1,5 @@
 import * as s3Controller from '../controllers/s3';
+import { Readable } from 'stream';
 
 export const initializeUpload = async (fileName, fileType) => {
   try {
@@ -13,54 +14,73 @@ export const initializeUpload = async (fileName, fileType) => {
 };
 
 export const uploadContent = async (uploadId, fileName, readableStream, contentSize) => {
-  const MIN_PART_SIZE = 5 * 1024 * 1024; // 5 MB
-  const partSize = MIN_PART_SIZE;
-
-  // List parts
-  const parts = await s3Controller.listParts(fileName, uploadId);
-
+  const PART_SIZE = 1024 * 1024 * 1024; // 1 GB
   let uploadedSize = 0;
-  let partNumber = parts.length + 1;
+  let partNumber = 1;
   const uploadedParts = [];
-  let tempBuffer = Buffer.alloc(0);
 
+  console.log('uploadContent', fileName, contentSize);
   try {
-    for await (const chunk of readableStream) {
-      tempBuffer = Buffer.concat([tempBuffer, chunk]);
+    while (uploadedSize < contentSize) {
 
-      while (tempBuffer.length >= partSize) {
-        const uploadChunk = tempBuffer.slice(0, partSize);
-        tempBuffer = tempBuffer.slice(partSize);
+      console.log('uploadedContent', uploadedSize);
 
-        console.log('Uploading part:', partNumber, uploadChunk.length);
-        const etag = await s3Controller.uploadPart(fileName, uploadId, partNumber, uploadChunk);
-        console.log('Uploaded part:', partNumber, etag);
+      // Calculate the part size
+      const partSize = Math.min(PART_SIZE, contentSize - uploadedSize);
+      let partStream = createPartStream(readableStream, partSize);
 
-        uploadedParts.push({ PartNumber: partNumber, ETag: etag });
-        partNumber++;
-        uploadedSize += uploadChunk.length;
+      // Upload the part
+      let retryCount = 0;
+      while (retryCount < 3) {
+        try {
+
+          console.log('Uploading part:', partNumber, partSize);
+          const etag = await s3Controller.uploadPart(
+            fileName, 
+            uploadId, 
+            partNumber, 
+            partStream,
+            partSize
+          );
+          console.log('Uploaded part:', partNumber, etag);
+          uploadedParts.push({ PartNumber: partNumber, ETag: etag });
+          partNumber++;
+          uploadedSize += partSize;
+
+          // Success, break the retry loop
+          break;
+        } catch (error) {
+          if (error.code === 'RequestAbortedError') {
+            console.log('Upload stream closed unexpectedly. Assuming paused or cancelled.');
+            break;
+          }
+          if (error.code === 'RequestTimeout' || error.name === 'RequestTimeout') {
+            retries++;
+            console.log(`Retry ${retries} for part ${partNumber}`);
+            await exponentialBackoff(retries);
+            // Reset the stream for retry
+            partStream.destroy();
+            partStream = createPartStream(readableStream, partSize);
+          }
+          throw error;
+        }
+      }
+
+      if (retryCount >= 3) {
+        console.error('Failed to upload part after 3 retries');
+        throw new Error('Failed to upload part after 3 retries');
       }
     }
 
-    // Upload any remaining data
-    if (tempBuffer.length > 0) {
-      console.log('Uploading final part:', partNumber, tempBuffer.length);
-      const etag = await s3Controller.uploadPart(fileName, uploadId, partNumber, tempBuffer);
-      console.log('Uploaded final part:', partNumber, etag);
-
-      uploadedParts.push({ PartNumber: partNumber, ETag: etag });
-      uploadedSize += tempBuffer.length;
-    }
-
     return {
-      message: 'Upload completed successfully',
+      message: uploadedSize < contentSize ? 'Upload incomplete' : 'Upload completed successfully',
       uploaded: uploadedSize,
       total: contentSize,
       parts: uploadedParts
     };
   } catch (error) {
     console.error('Error uploading content:', error);
-    throw new Error('Error uploading content');
+    //throw new Error('Error uploading content');
   }
 };
 
@@ -93,3 +113,49 @@ export const getUploadProgress = async (uploadId, fileName) => {
     throw new Error('Error getting upload progress');
   }
 };
+
+
+// Helpers
+const exponentialBackoff = (retryNumber) => {
+  const delay = Math.min(1000 * (2 ** retryNumber), 30000); // Max delay of 30 seconds
+  return new Promise(resolve => setTimeout(resolve, delay));
+};
+
+
+function createPartStream(readableStream, partSize) {
+  let bytesRead = 0;
+
+  return new Readable({
+    async read(size) {
+      try {
+
+        // The part is complete
+        if (bytesRead >= partSize) {
+          this.push(null);
+          return;
+        }
+
+        // Read the next chunk
+        const remainingBytes = partSize - bytesRead;
+        const chunkSize = Math.min(size, remainingBytes);
+        
+        const chunkObj = await readableStream.read(chunkSize);
+        
+        // The stream is done
+        if (chunkObj.done) {
+          this.push(null);
+          return;
+        }
+
+        // Push the chunk to the stream
+        if (chunkObj.value) {
+          bytesRead += chunkObj.value.length;
+          this.push(chunkObj.value);
+        }
+      } catch (error) {
+        console.error('Error reading stream:', error);
+        this.destroy(error);
+      }
+    }
+  });
+}

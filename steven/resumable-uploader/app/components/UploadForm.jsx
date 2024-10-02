@@ -39,7 +39,7 @@ export default function UploadForm({
           <div className="mb-4 p-4 bg-gray-50 rounded-md border border-slate-200 text-slate-700">
             <h3 className="font-semibold mb-2">File Details:</h3>
             <p><span className="font-medium">Name:</span> {file.name}</p>
-            <p><span className="font-medium">Size:</span> {(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            <p><span className="font-medium">Size:</span> {(file.size / 1024 / 1024).toFixed(0)} MB</p>
             <p><span className="font-medium">Type:</span> {file.type}</p>
           </div>
         )}

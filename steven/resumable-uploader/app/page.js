@@ -119,8 +119,11 @@ export default function Home() {
       setAbortController(controller);
 
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', url, true);
+      xhr.open('POST', url, true)
       xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+      // Add a timeout to the request
+      xhr.timeout = 600000; // 10 minutes
 
       xhr.upload.onprogress = (progressEvent) => {
         if (progressEvent.lengthComputable) {
