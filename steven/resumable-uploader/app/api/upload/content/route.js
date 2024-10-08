@@ -1,12 +1,5 @@
 import { uploadContent } from '../../services/upload';
 
-export const config = {
-  api: {
-    bodyParser: false,
-    maxDuration: 600, // 10 minutes
-  },
-};
-
 export async function POST(req) {
   // Extract uploadId and fileName from the query parameters
   const uploadId = req.nextUrl.searchParams.get('uploadId');

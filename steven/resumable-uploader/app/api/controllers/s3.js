@@ -41,7 +41,7 @@ export const uploadPart = async (key, uploadId, partNumber, body, contentLength)
         UploadId: uploadId,
         PartNumber: partNumber,
         Body: body,
-        ContentLength: contentLength
+        // ContentLength: contentLength
       });
 
       const { ETag } = await s3Client.send(command);

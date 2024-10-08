@@ -27,7 +27,8 @@ export const uploadContent = async (uploadId, fileName, readableStream, contentS
 
       // Calculate the part size
       const partSize = Math.min(PART_SIZE, contentSize - uploadedSize);
-      let partStream = createPartStream(readableStream, partSize);
+      let partStream = await streamToBuffer(readableStream);
+      //createPartStream(readableStream, partSize);
 
       // Upload the part
       let retryCount = 0;
@@ -158,4 +159,15 @@ function createPartStream(readableStream, partSize) {
       }
     }
   });
+}
+
+
+async function streamToBuffer(reader) {
+  const chunks = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
 }

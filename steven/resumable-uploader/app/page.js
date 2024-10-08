@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import UploadForm from './components/UploadForm';
+import LeapfilePage from './components/LeapfileHome';
 
 // Custom error class for aborted uploads
 class UploadAbortedError extends Error {
@@ -18,6 +19,7 @@ export default function Home() {
   const [uploadId, setUploadId] = useState(null);
   const [abortController, setAbortController] = useState(null);
   const [downloadUrl, setDownloadUrl] = useState(null);
+  const [userName, setUserName] = useState(null)
 
   const handleFileChange = (selectedFile) => {
     setFile(selectedFile);
@@ -37,6 +39,9 @@ export default function Home() {
         body: JSON.stringify({ fileName: file.name, fileType: file.type }),
       });
       const { uploadId } = await initResponse.json();
+      if (!uploadId) {
+        throw new Error('Upload ID not found');
+      }
       setUploadId(uploadId);
 
       // Upload content
@@ -152,12 +157,29 @@ export default function Home() {
     });
   };
 
+  useEffect(() => {
+    const onPageLoad = async () => {
+      try {
+        const response = await fetch('/fts/api/session/get');
+        const data = await response.json();
+        console.log(data)
+        setUserName(data.user.firstName);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    onPageLoad();
+  }, []);
+
   return (
     <div className="grid grid-rows-[auto_1fr_auto] min-h-screen">
       <header className="bg-gray-800 text-white p-4">
         <h1 className="text-2xl font-bold">Resumable File Uploader</h1>
       </header>
-      <main className="flex items-center justify-center p-4 bg-gray-100">
+      <main className="flex flex-col items-center justify-center p-4 bg-gray-100 gap-4">
+        <div className="text-2xl font-bold text-black">Hello {userName}!</div>
+
         <div className="w-full max-w-2xl">
           <UploadForm
             file={file}
